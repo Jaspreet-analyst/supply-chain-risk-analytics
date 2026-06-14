@@ -1,0 +1,259 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww20540\viewh14760\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 -- ============================================\
+-- SUPPLY CHAIN RISK & COST ANALYTICS\
+-- Author: Jaspreet Singh\
+-- Database: supply_chain_db\
+-- Tables: suppliers, shipments, containers, inventory, costs\
+-- ============================================\
+\
+-- ============================================\
+-- LEVEL 1: MULTI-TABLE JOINs\
+-- ============================================\
+\
+-- Q1: Full shipment view joining suppliers and costs\
+SELECT \
+    s.Shipment_ID,\
+    sup.Supplier_Name,\
+    sup.Risk_Rating,\
+    s.Carrier,\
+    s.POL,\
+    s.POD,\
+    s.Delay_Days,\
+    s.Delay_Reason,\
+    c.Total_Landed_Cost_USD,\
+    c.DD_Charges_USD\
+FROM shipments s\
+JOIN suppliers sup ON s.Supplier_ID = sup.Supplier_ID\
+JOIN costs c ON s.Shipment_ID = c.Shipment_ID\
+ORDER BY c.Total_Landed_Cost_USD DESC\
+LIMIT 20;\
+\
+-- Q2: Which suppliers cause the most delays?\
+SELECT \
+    sup.Supplier_Name,\
+    sup.Risk_Rating,\
+    sup.On_Time_Rate_Pct,\
+    COUNT(s.Shipment_ID) AS Total_Shipments,\
+    SUM(s.Delay_Days) AS Total_Delay_Days,\
+    ROUND(AVG(s.Delay_Days), 1) AS Avg_Delay_Days,\
+    SUM(c.DD_Charges_USD) AS Total_DD_Charges\
+FROM suppliers sup\
+JOIN shipments s ON sup.Supplier_ID = s.Supplier_ID\
+JOIN costs c ON s.Shipment_ID = c.Shipment_ID\
+GROUP BY sup.Supplier_Name, sup.Risk_Rating, sup.On_Time_Rate_Pct\
+ORDER BY Total_DD_Charges DESC;\
+\
+-- Q3: D&D charges by carrier and port\
+SELECT \
+    s.Carrier,\
+    s.POD,\
+    COUNT(cn.Container_ID) AS Total_Containers,\
+    SUM(cn.DD_Days) AS Total_DD_Days,\
+    ROUND(AVG(cn.DD_Days), 1) AS Avg_DD_Days,\
+    SUM(cn.DD_Charge_USD) AS Total_DD_Charges,\
+    ROUND(AVG(cn.DD_Charge_USD), 2) AS Avg_DD_Per_Container\
+FROM shipments s\
+JOIN containers cn ON s.Shipment_ID = cn.Shipment_ID\
+GROUP BY s.Carrier, s.POD\
+ORDER BY Total_DD_Charges DESC\
+LIMIT 20;\
+\
+-- Q4: Inventory risk linked to supplier reliability\
+SELECT \
+    i.SKU_ID,\
+    i.SKU_Name,\
+    i.Stock_Status,\
+    i.Days_Of_Supply,\
+    i.Reorder_Point,\
+    i.Current_Stock,\
+    sup.Supplier_Name,\
+    sup.Lead_Time_Days,\
+    sup.Reliability_Score,\
+    sup.Risk_Rating,\
+    i.Stockout_Cost_Per_Day_USD\
+FROM inventory i\
+JOIN suppliers sup ON i.Supplier_ID = sup.Supplier_ID\
+WHERE i.Stock_Status IN ('Critical', 'Low')\
+ORDER BY i.Stockout_Cost_Per_Day_USD DESC;\
+\
+-- ============================================\
+-- LEVEL 2: ADVANCED CTEs & SUBQUERIES\
+-- ============================================\
+\
+-- Q5: CTE \'97 Total cost breakdown per shipment\
+WITH Cost_Breakdown AS (\
+    SELECT \
+        c.Shipment_ID,\
+        s.Carrier,\
+        s.POD,\
+        sup.Supplier_Name,\
+        sup.Risk_Rating,\
+        c.Freight_Cost_USD,\
+        c.DD_Charges_USD,\
+        c.Customs_Fee_USD,\
+        c.Port_Handling_USD,\
+        c.Inland_Transport_USD,\
+        c.Insurance_USD,\
+        c.Total_Landed_Cost_USD,\
+        c.DD_As_Pct_Of_Total\
+    FROM costs c\
+    JOIN shipments s ON c.Shipment_ID = s.Shipment_ID\
+    JOIN suppliers sup ON s.Supplier_ID = sup.Supplier_ID\
+)\
+SELECT *\
+FROM Cost_Breakdown\
+WHERE DD_As_Pct_Of_Total > 10\
+ORDER BY DD_As_Pct_Of_Total DESC;\
+\
+-- Q6: CTE \'97 Identify high risk suppliers with critical inventory\
+WITH High_Risk_Suppliers AS (\
+    SELECT \
+        sup.Supplier_ID,\
+        sup.Supplier_Name,\
+        sup.Risk_Rating,\
+        sup.Reliability_Score,\
+        sup.Lead_Time_Days,\
+        COUNT(s.Shipment_ID) AS Total_Shipments,\
+        ROUND(AVG(s.Delay_Days), 1) AS Avg_Delay_Days,\
+        SUM(c.DD_Charges_USD) AS Total_DD_Charges\
+    FROM suppliers sup\
+    JOIN shipments s ON sup.Supplier_ID = s.Supplier_ID\
+    JOIN costs c ON s.Shipment_ID = c.Shipment_ID\
+    GROUP BY sup.Supplier_ID, sup.Supplier_Name, \
+             sup.Risk_Rating, sup.Reliability_Score, sup.Lead_Time_Days\
+    HAVING sup.Risk_Rating = 'High'\
+),\
+Critical_Inventory AS (\
+    SELECT \
+        i.Supplier_ID,\
+        COUNT(*) AS Critical_SKUs,\
+        SUM(i.Stockout_Cost_Per_Day_USD) AS Total_Stockout_Risk_Per_Day\
+    FROM inventory i\
+    WHERE i.Stock_Status IN ('Critical', 'Low')\
+    GROUP BY i.Supplier_ID\
+)\
+SELECT \
+    hrs.Supplier_Name,\
+    hrs.Risk_Rating,\
+    hrs.Reliability_Score,\
+    hrs.Avg_Delay_Days,\
+    hrs.Total_DD_Charges,\
+    ci.Critical_SKUs,\
+    ci.Total_Stockout_Risk_Per_Day\
+FROM High_Risk_Suppliers hrs\
+JOIN Critical_Inventory ci ON hrs.Supplier_ID = ci.Supplier_ID\
+ORDER BY ci.Total_Stockout_Risk_Per_Day DESC;\
+\
+-- Q7: Subquery \'97 Carriers with DD charges above average\
+SELECT \
+    Carrier,\
+    ROUND(SUM(DD_Charges_USD), 2) AS Total_DD_Charges,\
+    ROUND(AVG(DD_Charges_USD), 2) AS Avg_DD_Per_Shipment,\
+    (SELECT ROUND(AVG(DD_Charges_USD), 2) FROM costs) AS Overall_Avg\
+FROM costs\
+GROUP BY Carrier\
+HAVING AVG(DD_Charges_USD) > (SELECT AVG(DD_Charges_USD) FROM costs)\
+ORDER BY Total_DD_Charges DESC;\
+\
+-- Q8: Monthly landed cost trend with running total\
+SELECT \
+    Cost_Year,\
+    Cost_Month,\
+    ROUND(SUM(Total_Landed_Cost_USD), 2) AS Monthly_Cost,\
+    ROUND(SUM(DD_Charges_USD), 2) AS Monthly_DD,\
+    ROUND(SUM(SUM(Total_Landed_Cost_USD)) \
+        OVER (ORDER BY Cost_Year, Cost_Month), 2) AS Running_Total_Cost\
+FROM costs\
+GROUP BY Cost_Year, Cost_Month\
+ORDER BY Cost_Year, Cost_Month;\
+\
+-- ============================================\
+-- LEVEL 3: WINDOW FUNCTIONS & COMPLEX ANALYSIS\
+-- ============================================\
+\
+-- Q9: Rank carriers by total DD charges with percentile\
+SELECT \
+    Carrier,\
+    ROUND(SUM(DD_Charges_USD), 2) AS Total_DD_Charges,\
+    RANK() OVER (ORDER BY SUM(DD_Charges_USD) DESC) AS DD_Rank,\
+    ROUND(SUM(DD_Charges_USD) * 100.0 / SUM(SUM(DD_Charges_USD)) OVER (), 2) AS Pct_Of_Total_DD\
+FROM costs\
+GROUP BY Carrier\
+ORDER BY DD_Rank;\
+\
+-- Q10: Container D&D analysis with running cost per port\
+SELECT \
+    cn.POD,\
+    cn.Carrier,\
+    COUNT(cn.Container_ID) AS Total_Containers,\
+    SUM(cn.DD_Days) AS Total_DD_Days,\
+    ROUND(SUM(cn.DD_Charge_USD), 2) AS Total_DD_Charges,\
+    ROUND(SUM(SUM(cn.DD_Charge_USD)) \
+        OVER (PARTITION BY cn.POD ORDER BY SUM(cn.DD_Charge_USD) DESC), 2) AS Running_DD_By_Port\
+FROM containers cn\
+GROUP BY cn.POD, cn.Carrier\
+ORDER BY cn.POD, Total_DD_Charges DESC;\
+\
+-- Q11: Window Function \'97 Inventory risk score ranking\
+SELECT \
+    i.SKU_Name,\
+    i.Stock_Status,\
+    i.Days_Of_Supply,\
+    i.Stockout_Cost_Per_Day_USD,\
+    sup.Supplier_Name,\
+    sup.Risk_Rating,\
+    sup.Lead_Time_Days,\
+    ROUND(i.Stockout_Cost_Per_Day_USD * sup.Lead_Time_Days, 2) AS Total_Stockout_Exposure,\
+    RANK() OVER (ORDER BY i.Stockout_Cost_Per_Day_USD * sup.Lead_Time_Days DESC) AS Risk_Rank\
+FROM inventory i\
+JOIN suppliers sup ON i.Supplier_ID = sup.Supplier_ID\
+ORDER BY Risk_Rank;\
+\
+-- Q12: CTE + Window \'97 Top cost driver per destination port\
+WITH Port_Cost_Analysis AS (\
+    SELECT \
+        c.POD,\
+        c.Carrier,\
+        ROUND(SUM(c.Total_Landed_Cost_USD), 2) AS Total_Cost,\
+        ROUND(SUM(c.DD_Charges_USD), 2) AS Total_DD,\
+        ROUND(AVG(c.DD_As_Pct_Of_Total), 2) AS Avg_DD_Pct,\
+        RANK() OVER (PARTITION BY c.POD ORDER BY SUM(c.Total_Landed_Cost_USD) DESC) AS Cost_Rank\
+    FROM costs c\
+    GROUP BY c.POD, c.Carrier\
+)\
+SELECT *\
+FROM Port_Cost_Analysis\
+WHERE Cost_Rank = 1\
+ORDER BY Total_Cost DESC;\
+\
+-- Q13: Full supply chain risk summary per supplier\
+WITH Supplier_Risk AS (\
+    SELECT \
+        sup.Supplier_ID,\
+        sup.Supplier_Name,\
+        sup.Risk_Rating,\
+        sup.Reliability_Score,\
+        sup.Annual_Spend_USD,\
+        COUNT(DISTINCT s.Shipment_ID) AS Total_Shipments,\
+        ROUND(AVG(s.Delay_Days), 1) AS Avg_Delay,\
+        SUM(c.DD_Charges_USD) AS Total_DD_Cost,\
+        SUM(c.Total_Landed_Cost_USD) AS Total_Spend,\
+        COUNT(DISTINCT i.SKU_ID) AS SKUs_Supplied\
+    FROM suppliers sup\
+    LEFT JOIN shipments s ON sup.Supplier_ID = s.Supplier_ID\
+    LEFT JOIN costs c ON s.Shipment_ID = c.Shipment_ID\
+    LEFT JOIN inventory i ON sup.Supplier_ID = i.Supplier_ID\
+    GROUP BY sup.Supplier_ID, sup.Supplier_Name, sup.Risk_Rating, \
+             sup.Reliability_Score, sup.Annual_Spend_USD\
+)\
+SELECT *,\
+    ROUND(Total_DD_Cost / NULLIF(Total_Spend, 0) * 100, 2) AS DD_As_Pct_Of_Spend,\
+    RANK() OVER (ORDER BY Total_DD_Cost DESC) AS DD_Cost_Rank\
+FROM Supplier_Risk\
+ORDER BY DD_Cost_Rank;}
