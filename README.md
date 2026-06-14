@@ -103,7 +103,7 @@ suppliers (20 rows)
 - [x] Write Level 1 queries — Multi-table JOINs
 - [x] Write Level 2 queries — CTEs and Subqueries
 - [x] Write Level 3 queries — Window Functions
-- [ ] Build Tableau dashboard
+- [x] Build Tableau dashboard
 - [ ] Write case study
 
 ---
@@ -113,6 +113,8 @@ suppliers (20 rows)
 **Jaspreet Singh** | Ocean Import Agent | Supply Chain Analyst — Greater Toronto Area
 
 8+ years across ocean import, air freight and supply chain operations with hands-on experience in carrier negotiations, D&D cost recovery, cold chain management and key account operations.
+
+[![Tableau](https://img.shields.io/badge/Tableau-Live_Dashboard-E97627?style=for-the-badge&logo=tableau&logoColor=white)](https://public.tableau.com/app/profile/jaspreet.singh5400/viz/SupplyChainRiskCostAnalytics/SupplyChainRiskCostAnalytics20222024)
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/YOUR-LINKEDIN-URL)
 [![Project 1](https://img.shields.io/badge/Project_1-Ocean_Freight_SQL-4479A1?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Jaspreet-analyst/ocean-freight-sql-analytics)
