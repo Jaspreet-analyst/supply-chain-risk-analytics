@@ -104,7 +104,7 @@ suppliers (20 rows)
 - [x] Write Level 2 queries — CTEs and Subqueries
 - [x] Write Level 3 queries — Window Functions
 - [x] Build Tableau dashboard
-- [ ] Write case study
+- [x] Write case study
 
 ---
 
