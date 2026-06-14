@@ -1,6 +1,6 @@
 # 📦 Case Study: Supply Chain Risk & Cost Analytics
 
-**Author:** Jaspreet Singh | Ocean Agent | Greater Toronto Area
+**Author:** Jaspreet Singh | Ocean Import Agent | Supply Chain Analyst — Greater Toronto Area
 **Tools:** MySQL · Tableau Public · GitHub
 **Dataset:** 5 relational tables | 7,643 rows | 2022–2024
 **Live Dashboard:** [View on Tableau Public](https://public.tableau.com/app/profile/jaspreet.singh5400/viz/SupplyChainRiskCostAnalytics/SupplyChainRiskCostAnalytics20222024)
@@ -121,5 +121,5 @@ Some carriers consistently generate higher D&D charges regardless of port — su
 
 ---
 
-*Jaspreet Singh | Ocean Agent | Greater Toronto Area*
+*Jaspreet Singh | Ocean Import Agent | Supply Chain Analyst — Greater Toronto Area*
 *8+ years across ocean import, air freight, carrier negotiations, D&D cost recovery and cold chain operations*
